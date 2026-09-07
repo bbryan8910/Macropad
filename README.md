@@ -1,4 +1,5 @@
 # STREAMING DECK
+- A 3x3 macropad with a 128×32 OLED display and a rotary encoder!
 ---
 ## SHOWCASE: 
 - 128×32 .91 OLED display
