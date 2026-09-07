@@ -1,4 +1,4 @@
-# Macropad
+# STREAMING DECK
 ---
 ## SHOWCASE: 
 - 128×32 .91 OLED display
