@@ -1,68 +1,87 @@
 import board
+import busio
+import displayio
+import terminalio
+import i2cdisplaybus
+from adafruit_display_text import label
+import adafruit_displayio_ssd1306
+
 from kmk.kmk_keyboard import KMKKeyboard
 from kmk.keys import KC
 from kmk.scanners import DiodeOrientation
-
-# Modules for Consumer Control (Volume) & Encoder
-from kmk.modules.consumer_control import ConsumerControl
 from kmk.modules.encoder import EncoderHandler
+from kmk.extensions.media_keys import MediaKeys
 
+# -------------------------------------------------------------
+# 1. OLED DISPLAY SETUP (128x32 SSD1306)
+# -------------------------------------------------------------
+displayio.release_displays()
+
+i2c = busio.I2C(board.SCL, board.SDA)
+display_bus = i2cdisplaybus.I2CDisplayBus(i2c, device_address=0x3C)
+
+# Force 180-degree rotation directly at initialization
+display = adafruit_displayio_ssd1306.SSD1306(display_bus, width=128, height=32, rotation=180)
+
+splash = displayio.Group()
+
+# Try loading the 1-bit BMP image
+try:
+    bitmap = displayio.OnDiskBitmap("/logo.bmp")
+    tile_grid = displayio.TileGrid(bitmap, pixel_shader=bitmap.pixel_shader)
+    splash.append(tile_grid)
+except Exception:
+    # Fallback to text if logo.bmp is missing, wrong color depth, or invalid
+    text_area = label.Label(terminalio.FONT, text="BBBRYAN8910", x=0, y=8)
+    splash.append(text_area)
+    sub_text = label.Label(terminalio.FONT, text="MACROPAD!", x=0, y=24)
+    splash.append(sub_text)
+
+display.root_group = splash
+
+# -------------------------------------------------------------
+# 2. KMK KEYBOARD INITIALIZATION
+# -------------------------------------------------------------
 keyboard = KMKKeyboard()
 
 # -------------------------------------------------------------
-# 1. MATRIX CONFIGURATION
+# 3. KEY MATRIX SETUP (3x3 Grid)
 # -------------------------------------------------------------
-# Columns (Switch Pin 1s connected vertically): D7, D8, D9
 keyboard.col_pins = (board.D7, board.D8, board.D9)
-
-# Rows (Diode Cathodes connected horizontally): D2, D3, D6
 keyboard.row_pins = (board.D2, board.D3, board.D6)
-
-# Diode direction: Current flows from Switch Pin 1 (Cols) -> Pin 2 -> Diode Cathode (Rows)
-keyboard.diode_orientation = DiodeOrientation.COL2ROW
-
-# Enable Media / Consumer Keys
-consumer_control = ConsumerControl()
-keyboard.modules.append(consumer_control)
+keyboard.diode_orientation = DiodeOrientation.ROW2COL
 
 # -------------------------------------------------------------
-# 2. ROTARY ENCODER CONFIGURATION
+# 4. ROTARY ENCODER & MEDIA KEYS
 # -------------------------------------------------------------
+keyboard.extensions.append(MediaKeys())
+
 encoder_handler = EncoderHandler()
 keyboard.modules.append(encoder_handler)
 
-# Rotary Encoder Pins: Pin A (CLK) = D0, Pin B (DT) = D1
 encoder_handler.pins = (
-    (board.D0, board.D1, None),
+    (board.D0, board.D1, board.D10, False),
 )
 
-# Encoder Rotation: Counter-Clockwise = Volume Down, Clockwise = Volume Up
+ENCODER_PRESS = KC.LCTRL(KC.LSHIFT(KC.BSPC))
+
 encoder_handler.map = [
-    ((KC.AUDIO_VOL_DOWN, KC.AUDIO_VOL_UP),),
+    ((KC.AUDIO_VOL_UP, KC.AUDIO_VOL_DOWN, ENCODER_PRESS),),
 ]
 
 # -------------------------------------------------------------
-# 3. KEYMAP DEFINITION
+# 5. KEYMAP (Ctrl + Shift + 1 through 9)
 # -------------------------------------------------------------
-# Mic Mute Shortcut for SW10 Push Switch (D10): Ctrl + Alt + Shift + M
-# (Set this exact hotkey combination in Discord / OBS / Windows for Mic Mute)
-MIC_MUTE = KC.LCTRL(KC.LALT(KC.LSHIFT(KC.M)))
-
 keyboard.keymap = [
     [
-        # --- 3x3 Key Matrix (SW1 - SW9) ---
-        KC.F13, KC.F14, KC.F15,  # SW1, SW2, SW3
-        KC.F16, KC.F17, KC.F18,  # SW4, SW5, SW6
-        KC.F19, KC.F20, KC.F21,  # SW7, SW8, SW9
-        
-        # --- Rotary Encoder Switch (SW10) ---
-        MIC_MUTE,               # Standalone Switch on D10
+        KC.LCTRL(KC.LSHIFT(KC.N1)), KC.LCTRL(KC.LSHIFT(KC.N2)), KC.LCTRL(KC.LSHIFT(KC.N3)),
+        KC.LCTRL(KC.LSHIFT(KC.N4)), KC.LCTRL(KC.LSHIFT(KC.N5)), KC.LCTRL(KC.LSHIFT(KC.N6)),
+        KC.LCTRL(KC.LSHIFT(KC.N7)), KC.LCTRL(KC.LSHIFT(KC.N8)), KC.LCTRL(KC.LSHIFT(KC.N9)),
     ]
 ]
 
-# Direct pin routing for the standalone encoder button (SW10 connected to D10)
-# Note: In KMK, direct pins are appended to the matrix keymap as additional keys.
-keyboard.direct_pins = [board.D10]
-
+# -------------------------------------------------------------
+# 6. START KMK
+# -------------------------------------------------------------
 if __name__ == '__main__':
     keyboard.go()
